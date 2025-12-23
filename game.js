@@ -220,6 +220,15 @@ function updatePlayer() {
         // Move
         player.position.add(inputVector.clone().multiplyScalar(MOVEMENT_SPEED));
 
+        // Boundary Clamp (Radius 18 - keep in flat zone)
+        const distSq = player.position.x * player.position.x + player.position.z * player.position.z;
+        if (distSq > 18 * 18) {
+            const dist = Math.sqrt(distSq);
+            const ratio = 18 / dist;
+            player.position.x *= ratio;
+            player.position.z *= ratio;
+        }
+
         // Rotate to face movement
         const targetRotation = Math.atan2(inputVector.x, inputVector.z);
 
@@ -254,16 +263,57 @@ function updatePlayer() {
     camera.lookAt(lookTarget);
 }
 
+function getTerrainHeight(x, z) {
+    // Calculate distance from center
+    const dist = Math.sqrt(x * x + z * z); // Plane is X-Y initially
+
+    // Gentle rolling hills logic
+    // Only apply if far away (keep center flat for camp)
+    if (dist > 20) {
+        let height = Math.sin(x * 0.05) * Math.sin(z * 0.05) * 4;
+        height += Math.cos(x * 0.1 + z * 0.1) * 2;
+
+        // Perlin-ish noise approximation
+        height += Math.sin(x * 0.2) * Math.cos(z * 0.2) * 1;
+
+        // Fade in the height from radius 20 to 50
+        const blend = Math.min(1, Math.max(0, (dist - 20) / 30));
+
+        // Apply blend
+        return height * blend; // Z is 'up' before we rotate
+    }
+
+    return 0;
+}
+
 // ===== Create Ground =====
 function createGround() {
-    const groundGeometry = new THREE.CircleGeometry(25, 32);
+    // Large plane for terrain
+    const groundGeometry = new THREE.PlaneGeometry(200, 200, 128, 128);
+
+    // Apply Height Variations
+    const posAttribute = groundGeometry.attributes.position;
+    const vertex = new THREE.Vector3();
+
+    for (let i = 0; i < posAttribute.count; i++) {
+        vertex.fromBufferAttribute(posAttribute, i);
+
+        vertex.z += getTerrainHeight(vertex.x, -vertex.y);
+
+        posAttribute.setZ(i, vertex.z);
+    }
+
+    groundGeometry.computeVertexNormals();
+
     const groundMaterial = new THREE.MeshStandardMaterial({
-        color: 0x2a3a2a,
+        color: 0x223322, // Slightly darker green/grey
         roughness: 0.9,
-        metalness: 0.1
+        metalness: 0.1,
+        // flatShading: true // Optional: for low poly look
     });
+
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
+    ground.rotation.x = -Math.PI / 2; // Flat on ground
     ground.receiveShadow = true;
     scene.add(ground);
 }
@@ -299,21 +349,23 @@ function createStoneRing() {
 
 // ===== Create Trees =====
 function createTrees() {
-    const treeCount = 30; // Increased count slightly for denser forest
+    const treeCount = 150; // Dense forest
 
     for (let i = 0; i < treeCount; i++) {
         // Random position logic covering a larger area
-        // Avoid center (radius < 6)
         const angle = Math.random() * Math.PI * 2;
-        const radius = 8 + Math.random() * 20; // 8 to 28 units away
+        const radius = 8 + Math.random() * 80; // 8 to 88 units away
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
+
+        // Get height from terrain function
+        const y = getTerrainHeight(x, z);
 
         // Random scale
         const scale = 0.8 + Math.random() * 0.8;
 
         const treeGroup = new THREE.Group();
-        treeGroup.position.set(x, 0, z);
+        treeGroup.position.set(x, y, z);
         treeGroup.scale.setScalar(scale);
 
         // Trunk - Tapered
@@ -879,14 +931,14 @@ function animate() {
         const flicker = Math.sin(time * 3) * 0.15 + (Math.random() - 0.5) * 0.3 + 1.0;
 
         // Base intensity ramps up with fire intensity 
-        // Max intensity around 40-50
-        const baseIntensity = (gameState.fireIntensity / 100) * 50;
+        // Max intensity around 100
+        const baseIntensity = (gameState.fireIntensity / 100) * 100;
 
         fireLight.intensity = Math.max(0, baseIntensity * flicker);
-        fireLight.distance = 15 + (gameState.fireIntensity / 100) * 35;
+        fireLight.distance = 25 + (gameState.fireIntensity / 100) * 100; // Wide reach
 
         // Decrease fire intensity over time
-        gameState.fireIntensity -= 0.02;
+        gameState.fireIntensity -= 0.005; // 4x slower burn
         if (gameState.fireIntensity <= 0) {
             gameState.fireIntensity = 0;
             gameState.isLit = false;
