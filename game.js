@@ -24,7 +24,15 @@ let player;
 let playerVelocity = new THREE.Vector3();
 let playerInput = { w: false, a: false, s: false, d: false };
 const MOVEMENT_SPEED = 0.1;
-const ROTATION_SPEED = 0.1;
+const ROTATION_SPEED = 0.15; // Increased rotation speed for snappier feel
+
+// Camera State
+let cameraState = {
+    angleX: 0, // 0 = Camera at +Z (South), looking -Z (North)
+    angleY: 0.3, // Pitch (radians)
+    radius: 8.0,
+    isDragging: false
+};
 
 // ===== Initialize Scene =====
 function init() {
@@ -79,6 +87,12 @@ function init() {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     renderer.domElement.addEventListener('click', onCanvasClick);
+
+    // Mouse control listeners
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('contextmenu', e => e.preventDefault());
 
     // UI Event Listeners
     document.getElementById('logs-resource').addEventListener('click', () => {
@@ -139,14 +153,30 @@ function createCharacter() {
 function updatePlayer() {
     if (!player) return;
 
-    // Calculate movement vector
-    const moveDir = new THREE.Vector3(0, 0, 0);
-
+    // --- Movement Logic ---
     let inputVector = new THREE.Vector3(0, 0, 0);
-    if (playerInput.w) inputVector.z -= 1;
-    if (playerInput.s) inputVector.z += 1;
-    if (playerInput.a) inputVector.x -= 1;
-    if (playerInput.d) inputVector.x += 1;
+
+    // Relative to camera view
+    const yaw = cameraState.angleX;
+
+    if (playerInput.w || playerInput.s || playerInput.a || playerInput.d) {
+        if (playerInput.w) {
+            inputVector.x -= Math.sin(yaw);
+            inputVector.z -= Math.cos(yaw);
+        }
+        if (playerInput.s) {
+            inputVector.x += Math.sin(yaw);
+            inputVector.z += Math.cos(yaw);
+        }
+        if (playerInput.a) {
+            inputVector.x -= Math.cos(yaw);
+            inputVector.z += Math.sin(yaw);
+        }
+        if (playerInput.d) {
+            inputVector.x += Math.cos(yaw);
+            inputVector.z -= Math.sin(yaw);
+        }
+    }
 
     if (inputVector.length() > 0) {
         inputVector.normalize();
@@ -157,24 +187,27 @@ function updatePlayer() {
         // Rotate to face movement
         const targetRotation = Math.atan2(inputVector.x, inputVector.z);
 
-        // Simple Lerp for rotation
-        const currentRotation = player.rotation.y;
-
         // Shortest path rotation logic
-        let diff = targetRotation - currentRotation;
+        let diff = targetRotation - player.rotation.y;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
 
         player.rotation.y += diff * ROTATION_SPEED;
     }
 
-    // Camera Follow
-    const cameraOffset = new THREE.Vector3(0, 3, 6); // Behind and up
-    const targetCamPos = player.position.clone().add(cameraOffset);
+    // --- Camera Update ---
+    // Calculate camera position based on spherical coordinates
+    const cx = player.position.x + cameraState.radius * Math.sin(cameraState.angleX) * Math.cos(cameraState.angleY);
+    const cy = player.position.y + cameraState.radius * Math.sin(cameraState.angleY);
+    const cz = player.position.z + cameraState.radius * Math.cos(cameraState.angleX) * Math.cos(cameraState.angleY);
 
     // Smooth camera follow
-    camera.position.lerp(targetCamPos, 0.1);
-    camera.lookAt(player.position);
+    const targetCamPos = new THREE.Vector3(cx, cy, cz);
+    camera.position.lerp(targetCamPos, 0.2); // Slightly faster lerp for responsiveness
+
+    // Look at player (upper body)
+    const lookTarget = player.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+    camera.lookAt(lookTarget);
 }
 
 // ===== Create Ground =====
@@ -556,6 +589,33 @@ function onKeyUp(event) {
         case 'a': playerInput.a = false; break;
         case 's': playerInput.s = false; break;
         case 'd': playerInput.d = false; break;
+    }
+}
+
+// ===== Mouse Input Handling =====
+function onMouseDown(event) {
+    if (event.button === 2) { // Right click
+        cameraState.isDragging = true;
+        document.body.style.cursor = 'grabbing';
+    }
+}
+
+function onMouseUp(event) {
+    if (event.button === 2) {
+        cameraState.isDragging = false;
+        document.body.style.cursor = 'default';
+    }
+}
+
+function onMouseMove(event) {
+    if (cameraState.isDragging) {
+        const sensitivity = 0.005;
+        cameraState.angleX -= event.movementX * sensitivity;
+        cameraState.angleY += event.movementY * sensitivity;
+
+        // Clamp vertical angle to avoid weirdness
+        // Min 0.1 (low angle), Max 1.4 (high angle, almost over head)
+        cameraState.angleY = Math.max(0.1, Math.min(1.4, cameraState.angleY));
     }
 }
 
