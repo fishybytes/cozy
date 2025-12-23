@@ -12,6 +12,7 @@ let emberParticles = [];
 let fireLight;
 let logs = [];
 let groundLogs = [];
+let hoveredLog = null;
 
 // Game State
 let gameState = {
@@ -466,29 +467,40 @@ function createMoon() {
 
 // ===== Create Ground Logs (Collectible) =====
 function createGroundLogs() {
-    const logPositions = [
-        { x: -3, z: 3 }, { x: 3, z: 3 }, { x: -3, z: -3 }
-    ];
+    const logCount = 15;
 
-    logPositions.forEach((pos, index) => {
+    for (let i = 0; i < logCount; i++) {
+        // Random position logic
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 4 + Math.random() * 16; // 4 to 20 units away
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+
         const logGroup = new THREE.Group();
 
         const logGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1.2, 8);
         const logMaterial = new THREE.MeshStandardMaterial({
             color: 0x5a3a1a,
-            roughness: 0.9
+            roughness: 0.9,
+            emissive: 0x000000, // Prepare for glow
+            emissiveIntensity: 0.8
         });
         const log = new THREE.Mesh(logGeometry, logMaterial);
         log.rotation.z = Math.PI / 2;
+        log.rotation.y = Math.random() * Math.PI; // Random rotation on ground
         log.castShadow = true;
 
         logGroup.add(log);
-        logGroup.position.set(pos.x, 0.15, pos.z);
-        logGroup.userData = { type: 'collectible-log', index: index };
+        logGroup.position.set(x, 0.15, z);
+
+        // Tag for raycaster - IMPORTANT: Tag the MESH, or traverse group
+        // Simplest is to tag the mesh with reference to the group if needed
+        log.userData = { type: 'collectible-log', parentGroup: logGroup };
+        logGroup.userData = { type: 'collectible-log-group' };
 
         groundLogs.push(logGroup);
         scene.add(logGroup);
-    });
+    }
 }
 
 // ===== Add Log to Fire =====
@@ -773,15 +785,10 @@ function onMouseMove(event) {
         // Clamp vertical angle to avoid weirdness
         // Min -0.8 (looking up from ground), Max 1.4 (high angle)
         cameraState.angleY = Math.max(-0.8, Math.min(1.4, cameraState.angleY));
+        return;
     }
-}
 
-// ===== Interaction =====
-function onCanvasClick(event) {
-    // We'll keep the raycasting for now, but it might feel weird if camera moves.
-    // Let's update it to ensure it uses the current camera position which handles itself in the logic.
-    // Raycaster logic in original code uses 'camera', so it should just work if camera moves.
-
+    // Hover Logic
     const rect = renderer.domElement.getBoundingClientRect();
     const mouse = new THREE.Vector2(
         ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -791,59 +798,57 @@ function onCanvasClick(event) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
 
+    // Intersect with scene children
+    // We filter specifically for objects that are logs
     const intersects = raycaster.intersectObjects(scene.children, true);
 
-    for (let i = 0; i < intersects.length; i++) {
-        const object = intersects[i].object;
+    let foundLog = null;
 
-        // Check for logs (checking if it matches log geometry/material properties essentially)
-        // Since we didn't store references well, we check based on hierarchy or name if possible.
-        // Or distance. 
+    for (let hit of intersects) {
+        if (hit.object.userData && hit.object.userData.type === 'collectible-log') {
+            foundLog = hit.object;
+            break;
+        }
+    }
 
-        // Improved: logic to check if it's a "collectible log"
-        // In createGroundLogs we didn't tag them. 
-        // But we can check geometry type or parent.
+    if (foundLog) {
+        if (hoveredLog !== foundLog) {
+            // Unhighlight previous
+            if (hoveredLog) hoveredLog.material.emissive.setHex(0x000000);
 
-        // For now, let's assume if it has the specific brown color and is on ground?
-        // Actually, the original OnCanvasClick logic should be preserved if possible, 
-        // but I replaced the whole block. I need to re-implement reliable log picking.
-
-        // Let's check against our known log positions if possible? NO.
-        // Let's check checks logic from previous file read if possible.
-        // Ah, I don't have the original onCanvasClick in context here precisely, 
-        // so I'll write robust logic:
-
-        // If object looks like a log (Cylinder, on ground)
-        if (object.geometry.type === 'CylinderGeometry' && object.position.y < 0.5) {
-            // Assume it's a log
-            // Distance check to player?
-            if (player && object.position.distanceTo(player.position) < 2.0) {
-                collectLog(object);
-                break;
-            } else if (player) {
-                console.log("Too far to pick up!");
-                // Maybe show a UI hint?
-            }
+            // Highlight new
+            hoveredLog = foundLog;
+            hoveredLog.material.emissive.setHex(0x884400); // Warm glow
+            document.body.style.cursor = 'pointer';
+        }
+    } else {
+        if (hoveredLog) {
+            hoveredLog.material.emissive.setHex(0x000000);
+            hoveredLog = null;
+            document.body.style.cursor = 'default';
         }
     }
 }
 
-function collectLog(logObject) {
-    // Animation or immediate removal?
-    // Let's remove for now
-    // Find unit in parent if it's in a group? 
-    // The logs were added directly to scene in original code presumably.
+// ===== Interaction =====
+function onCanvasClick(event) {
+    // If we have a hovered log, collect it
+    if (hoveredLog) {
+        const logGroup = hoveredLog.userData.parentGroup;
 
-    // We need to actually find the log index or just remove object.
-    scene.remove(logObject);
+        scene.remove(logGroup);
+        // Remove from array logic if needed, but for now visual removal is key
 
-    // Increment resource
-    gameState.logs++;
-    updateUI();
+        gameState.logs++;
+        updateUI();
 
-    // Visual feedback
-    // Could add 'floating +1' text or particle
+        hoveredLog = null;
+        document.body.style.cursor = 'default';
+
+        return; // Handled
+    }
 }
+
 
 // ===== Animation Loop =====
 function animate() {
