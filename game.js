@@ -630,14 +630,14 @@ function onKeyUp(event) {
 function onMouseDown(event) {
     if (event.button === 2) { // Right click
         cameraState.isDragging = true;
-        document.body.style.cursor = 'grabbing';
+        document.body.requestPointerLock();
     }
 }
 
 function onMouseUp(event) {
     if (event.button === 2) {
         cameraState.isDragging = false;
-        document.body.style.cursor = 'default';
+        document.exitPointerLock();
     }
 }
 
