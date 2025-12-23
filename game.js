@@ -60,12 +60,12 @@ function init() {
     document.getElementById('canvas-container').appendChild(renderer.domElement);
 
     // Create lighting
-    const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.8);
+    const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.4); // Reduced ambient to make fire pop
     scene.add(ambientLight);
 
     // Fire point light
-    fireLight = new THREE.PointLight(0xff6b35, 0, 15);
-    fireLight.position.set(0, 0.5, 0);
+    fireLight = new THREE.PointLight(0xff6b35, 0, 40); // Increased max distance
+    fireLight.position.set(0, 1.5, 0); // Raised slightly
     fireLight.castShadow = true;
     scene.add(fireLight);
 
@@ -255,12 +255,23 @@ function createStoneRing() {
 
 // ===== Create Trees =====
 function createTrees() {
-    const treePositions = [
-        { x: -8, z: -8 }, { x: 8, z: -8 }, { x: -8, z: 8 }, { x: 8, z: 8 },
-        { x: -10, z: 0 }, { x: 10, z: 0 }, { x: 0, z: -10 }, { x: 0, z: 10 }
-    ];
+    const treeCount = 20;
 
-    treePositions.forEach(pos => {
+    for (let i = 0; i < treeCount; i++) {
+        // Random position logic covering a larger area
+        // Avoid center (radius < 6)
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 6 + Math.random() * 14; // 6 to 20 units away
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+
+        // Random scale
+        const scale = 0.8 + Math.random() * 0.7; // 0.8 to 1.5
+
+        const treeGroup = new THREE.Group();
+        treeGroup.position.set(x, 0, z);
+        treeGroup.scale.setScalar(scale);
+
         // Trunk
         const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 4, 8);
         const trunkMaterial = new THREE.MeshStandardMaterial({
@@ -268,9 +279,9 @@ function createTrees() {
             roughness: 0.9
         });
         const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-        trunk.position.set(pos.x, 2, pos.z);
+        trunk.position.y = 2;
         trunk.castShadow = true;
-        scene.add(trunk);
+        treeGroup.add(trunk);
 
         // Foliage
         const foliageGeometry = new THREE.ConeGeometry(1.5, 3, 8);
@@ -279,10 +290,12 @@ function createTrees() {
             roughness: 0.8
         });
         const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-        foliage.position.set(pos.x, 5, pos.z);
+        foliage.position.y = 5;
         foliage.castShadow = true;
-        scene.add(foliage);
-    });
+        treeGroup.add(foliage);
+
+        scene.add(treeGroup);
+    }
 }
 
 // ===== Create Stars =====
@@ -712,9 +725,16 @@ function animate() {
             createEmberParticle();
         }
 
-        // Update fire light
-        fireLight.intensity = (gameState.fireIntensity / 100) * 6 + Math.random() * 0.5;
-        fireLight.distance = 20 + (gameState.fireIntensity / 100) * 20;
+        // Update fire light with dynamic flicker
+        const time = Date.now() * 0.005;
+        const flicker = Math.sin(time * 3) * 0.15 + (Math.random() - 0.5) * 0.3 + 1.0;
+
+        // Base intensity ramps up with fire intensity 
+        // Max intensity around 40-50
+        const baseIntensity = (gameState.fireIntensity / 100) * 50;
+
+        fireLight.intensity = Math.max(0, baseIntensity * flicker);
+        fireLight.distance = 15 + (gameState.fireIntensity / 100) * 35;
 
         // Decrease fire intensity over time
         gameState.fireIntensity -= 0.02;
