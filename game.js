@@ -42,7 +42,7 @@ function init() {
     // Create scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0a14);
-    scene.fog = new THREE.Fog(0x0a0a14, 10, 50);
+    // scene.fog = new THREE.Fog(0x0a0a14, 10, 50);
 
     // Create camera
     camera = new THREE.PerspectiveCamera(
@@ -98,6 +98,7 @@ function init() {
     createGround();
     createStoneRing();
     createTrees();
+    createMountains();
     createStars();
     createGroundLogs();
     createCharacter();
@@ -223,10 +224,18 @@ function updatePlayer() {
 
     // Smooth camera follow
     const targetCamPos = new THREE.Vector3(cx, cy, cz);
+
+    // Ground collision (prevent going under)
+    let undershoot = 0;
+    if (targetCamPos.y < 0.8) {
+        undershoot = 0.8 - targetCamPos.y;
+        targetCamPos.y = 0.8;
+    }
+
     camera.position.lerp(targetCamPos, 0.2); // Slightly faster lerp for responsiveness
 
-    // Look at player (upper body)
-    const lookTarget = player.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+    // Look at player (upper body) - Adjust look target if near ground to allow looking up
+    const lookTarget = player.position.clone().add(new THREE.Vector3(0, 1.2 + undershoot * 1.5, 0));
     camera.lookAt(lookTarget);
 }
 
@@ -315,6 +324,36 @@ function createTrees() {
         treeGroup.add(foliage);
 
         scene.add(treeGroup);
+    }
+}
+
+// ===== Create Mountains =====
+function createMountains() {
+    const mountainCount = 24;
+
+    for (let i = 0; i < mountainCount; i++) {
+        const theta = (i / mountainCount) * Math.PI * 2;
+        const radius = 150 + Math.random() * 30; // Much further
+
+        const x = Math.cos(theta) * radius;
+        const z = Math.sin(theta) * radius;
+
+        // Giant cones
+        const height = 80 + Math.random() * 60;
+        const width = 60 + Math.random() * 30;
+
+        const geometry = new THREE.ConeGeometry(width, height, 5); // Low poly
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x030308, // Very dark, almost black blue for silhouette
+        });
+
+        const mountain = new THREE.Mesh(geometry, material);
+        mountain.position.set(x, height / 2 - 10, z); // Lower them slightly to feel rooted
+
+        // Rotate randomly for variety
+        mountain.rotation.y = Math.random() * Math.PI;
+
+        scene.add(mountain);
     }
 }
 
@@ -648,8 +687,8 @@ function onMouseMove(event) {
         cameraState.angleY += event.movementY * sensitivity;
 
         // Clamp vertical angle to avoid weirdness
-        // Min 0.1 (low angle), Max 1.4 (high angle, almost over head)
-        cameraState.angleY = Math.max(0.1, Math.min(1.4, cameraState.angleY));
+        // Min -0.8 (looking up from ground), Max 1.4 (high angle)
+        cameraState.angleY = Math.max(-0.8, Math.min(1.4, cameraState.angleY));
     }
 }
 
