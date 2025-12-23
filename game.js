@@ -90,9 +90,22 @@ function init() {
     scene.add(fireLight);
 
     // Moonlight
-    const moonLight = new THREE.DirectionalLight(0x9db4c0, 0.5);
-    moonLight.position.set(5, 10, 5);
+    // Moonlight
+    const moonLight = new THREE.DirectionalLight(0x9db4c0, 0.2); // Subtle intensity
+    // Position will be matched to moon mesh in createMoon, but set default here
+    moonLight.position.set(20, 10, 20);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 2048;
+    moonLight.shadow.mapSize.height = 2048;
+    moonLight.shadow.camera.left = -30;
+    moonLight.shadow.camera.right = 30;
+    moonLight.shadow.camera.top = 30;
+    moonLight.shadow.camera.bottom = -30;
     scene.add(moonLight);
+    // Expose to global/scope if needed, or find by type later. 
+    // Actually, simpler to assign in createMoon or pass it. 
+    // Let's make it global for simplicity or just name it.
+    moonLight.name = "MoonLight";
 
     // Create environment
     createGround();
@@ -100,6 +113,7 @@ function init() {
     createTrees();
     createMountains();
     createStars();
+    createMoon();
     createGroundLogs();
     createCharacter();
 
@@ -394,6 +408,32 @@ function createStars() {
     });
     const stars = new THREE.Points(starGeometry, starMaterial);
     scene.add(stars);
+}
+
+// ===== Create Moon =====
+function createMoon() {
+    const radius = 400; // Between mountains (150) and stars (500)
+    const theta = Math.PI * 0.25; // Corner angle
+    const phi = Math.PI * 0.3;    // Higher altitude
+
+    const x = radius * Math.sin(phi) * Math.cos(theta);
+    const y = radius * Math.cos(phi); // 400 * cos(0.4PI) approx 123 high
+    const z = radius * Math.sin(phi) * Math.sin(theta);
+
+    const geometry = new THREE.SphereGeometry(20, 32, 32);
+    const material = new THREE.MeshBasicMaterial({
+        color: 0xffffdd, // Pale yellow
+    });
+
+    const moon = new THREE.Mesh(geometry, material);
+    moon.position.set(x, y, z); // Natural position
+    scene.add(moon);
+
+    // Update Directional Light to align with Moon
+    const light = scene.getObjectByName("MoonLight");
+    if (light) {
+        light.position.copy(moon.position);
+    }
 }
 
 // ===== Create Ground Logs (Collectible) =====
