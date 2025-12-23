@@ -360,13 +360,29 @@ function createMountains() {
 // ===== Create Stars =====
 function createStars() {
     const starGeometry = new THREE.BufferGeometry();
-    const starCount = 1000;
+    const starCount = 2000;
     const positions = new Float32Array(starCount * 3);
 
+    const radius = 500; // Sky dome distance
+
     for (let i = 0; i < starCount * 3; i += 3) {
-        positions[i] = (Math.random() - 0.5) * 100;
-        positions[i + 1] = Math.random() * 50 + 20;
-        positions[i + 2] = (Math.random() - 0.5) * 100;
+        // Spherical distribution
+        const theta = 2 * Math.PI * Math.random();
+        const phi = Math.acos(2 * Math.random() - 1);
+
+        const x = radius * Math.sin(phi) * Math.cos(theta);
+        const y = radius * Math.sin(phi) * Math.sin(theta);
+        const z = radius * Math.cos(phi);
+
+        // Only keep upper hemisphere (sky) + slightly below horizon
+        if (y < -50) {
+            i -= 3; // Retry
+            continue;
+        }
+
+        positions[i] = x;
+        positions[i + 1] = y;
+        positions[i + 2] = z;
     }
 
     starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
