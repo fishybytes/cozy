@@ -80,7 +80,7 @@ function init() {
     composer.addPass(bloomPass);
 
     // Create lighting
-    const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.4); // Reduced ambient to make fire pop
+    const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.6); // Increased ambient for better visibility
     scene.add(ambientLight);
 
     // Fire point light
@@ -298,44 +298,72 @@ function createStoneRing() {
 
 // ===== Create Trees =====
 function createTrees() {
-    const treeCount = 20;
+    const treeCount = 30; // Increased count slightly for denser forest
 
     for (let i = 0; i < treeCount; i++) {
         // Random position logic covering a larger area
         // Avoid center (radius < 6)
         const angle = Math.random() * Math.PI * 2;
-        const radius = 6 + Math.random() * 14; // 6 to 20 units away
+        const radius = 8 + Math.random() * 20; // 8 to 28 units away
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
 
         // Random scale
-        const scale = 0.8 + Math.random() * 0.7; // 0.8 to 1.5
+        const scale = 0.8 + Math.random() * 0.8;
 
         const treeGroup = new THREE.Group();
         treeGroup.position.set(x, 0, z);
         treeGroup.scale.setScalar(scale);
 
-        // Trunk
-        const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 4, 8);
+        // Trunk - Tapered
+        // TopRad: 0.2, BotRad: 0.4, Height: 3
+        const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.4, 3, 7);
         const trunkMaterial = new THREE.MeshStandardMaterial({
-            color: 0x3a2a1a,
+            color: 0x4a3a2a,
             roughness: 0.9
         });
         const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-        trunk.position.y = 2;
+        trunk.position.y = 1.5;
         trunk.castShadow = true;
+        trunk.receiveShadow = true;
         treeGroup.add(trunk);
 
-        // Foliage
-        const foliageGeometry = new THREE.ConeGeometry(1.5, 3, 8);
+        // Procedural Foliage (Spheres)
+        const foliageColor = new THREE.Color().setHSL(0.3, 0.5 + Math.random() * 0.2, 0.15 + Math.random() * 0.1);
         const foliageMaterial = new THREE.MeshStandardMaterial({
-            color: 0x1a3a1a,
+            color: foliageColor,
             roughness: 0.8
         });
-        const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-        foliage.position.y = 5;
-        foliage.castShadow = true;
-        treeGroup.add(foliage);
+
+        // Main Canopy
+        const mainGeo = new THREE.DodecahedronGeometry(1.5, 0);
+        const mainLeaf = new THREE.Mesh(mainGeo, foliageMaterial);
+        mainLeaf.position.y = 3.2;
+        mainLeaf.castShadow = true;
+        mainLeaf.receiveShadow = true;
+        treeGroup.add(mainLeaf);
+
+        // Sub Canopies (2-4 random lumps)
+        const lumps = 2 + Math.floor(Math.random() * 3);
+        for (let j = 0; j < lumps; j++) {
+            const subGeo = new THREE.DodecahedronGeometry(0.8 + Math.random() * 0.6, 0);
+            const subLeaf = new THREE.Mesh(subGeo, foliageMaterial);
+
+            // Offset around the top
+            const subAngle = Math.random() * Math.PI * 2;
+            const subRadius = 0.6 + Math.random() * 0.7;
+            const subH = 2.0 + Math.random() * 1.5; // Overlapping trunk/main
+
+            subLeaf.position.set(
+                Math.cos(subAngle) * subRadius,
+                subH,
+                Math.sin(subAngle) * subRadius
+            );
+
+            subLeaf.castShadow = true;
+            subLeaf.receiveShadow = true;
+            treeGroup.add(subLeaf);
+        }
 
         scene.add(treeGroup);
     }
