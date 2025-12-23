@@ -1,8 +1,11 @@
 // ===== Three.js Module Imports =====
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 // ===== Three.js Scene Setup =====
-let scene, camera, renderer;
+let scene, camera, renderer, composer;
 let fireParticles = [];
 let smokeParticles = [];
 let emberParticles = [];
@@ -58,6 +61,23 @@ function init() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    // Post-processing
+    const renderScene = new RenderPass(scene, camera);
+
+    const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        1.5,
+        0.4,
+        0.85
+    );
+    bloomPass.threshold = 0.2; // Glows starts at 20% brightness
+    bloomPass.strength = 1.5;  // Intensity
+    bloomPass.radius = 0.5;    // Spread
+
+    composer = new EffectComposer(renderer);
+    composer.addPass(renderScene);
+    composer.addPass(bloomPass);
 
     // Create lighting
     const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.4); // Reduced ambient to make fire pop
@@ -410,9 +430,9 @@ function createFireParticle() {
 
     particle.userData = {
         velocity: new THREE.Vector3(
-            (Math.random() - 0.5) * 0.01,
-            Math.random() * 0.03 + 0.01,
-            (Math.random() - 0.5) * 0.01
+            (Math.random() - 0.5) * 0.005, // Reduced spread
+            Math.random() * 0.015 + 0.005, // Much slower rise (was 0.01-0.04 -> 0.005-0.02)
+            (Math.random() - 0.5) * 0.005
         ),
         life: 1.0,
         maxLife: Math.random() * 0.5 + 0.5,
@@ -443,9 +463,9 @@ function createSmokeParticle() {
 
     particle.userData = {
         velocity: new THREE.Vector3(
-            (Math.random() - 0.5) * 0.005,
-            Math.random() * 0.015 + 0.01,
-            (Math.random() - 0.5) * 0.005
+            (Math.random() - 0.5) * 0.003,
+            Math.random() * 0.008 + 0.005, // Lazy smoke
+            (Math.random() - 0.5) * 0.003
         ),
         life: 1.0,
         phase: Math.random() * Math.PI * 2
@@ -475,9 +495,9 @@ function createEmberParticle() {
 
     particle.userData = {
         velocity: new THREE.Vector3(
-            (Math.random() - 0.5) * 0.01,
-            Math.random() * 0.02 + 0.01,
-            (Math.random() - 0.5) * 0.01
+            (Math.random() - 0.5) * 0.005,
+            Math.random() * 0.01 + 0.005,
+            (Math.random() - 0.5) * 0.005
         ),
         life: 1.0,
         phase: Math.random() * Math.PI * 2
@@ -499,7 +519,7 @@ function updateParticles() {
         particle.position.x += Math.sin(time + particle.userData.phase) * 0.002;
         particle.position.z += Math.cos(time + particle.userData.phase) * 0.002;
 
-        particle.userData.life -= 0.01;
+        particle.userData.life -= 0.005; // Slower decay (was 0.01)
 
         const life = particle.userData.life;
         if (life > 0.7) {
@@ -528,7 +548,7 @@ function updateParticles() {
 
         particle.position.x += Math.sin(time * 0.5 + particle.userData.phase) * 0.003;
 
-        particle.userData.life -= 0.005;
+        particle.userData.life -= 0.003; // Even slower smoke decay
         particle.material.opacity = particle.userData.life * 0.3;
         particle.scale.setScalar(1 + (1 - particle.userData.life) * 2);
 
@@ -545,7 +565,7 @@ function updateParticles() {
 
         particle.position.x += Math.sin(time * 2 + particle.userData.phase) * 0.004;
 
-        particle.userData.life -= 0.008;
+        particle.userData.life -= 0.004;
         particle.material.opacity = particle.userData.life;
 
         if (particle.userData.life <= 0) {
@@ -582,6 +602,7 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
 }
 
 // ===== Input Handling =====
@@ -753,8 +774,8 @@ function animate() {
     // Update particles
     updateParticles();
 
-    // Render scene
-    renderer.render(scene, camera);
+    // Render scene with bloom
+    composer.render();
 }
 
 // ===== Start Game =====
