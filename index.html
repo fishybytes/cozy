@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Build and tend a cozy 3D campfire in this relaxing interactive experience">
+    <title>Cozy Campfire - Build Your Fire</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cormorant+Garamond:wght@300;400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div id="ui-overlay">
+        <!-- Title -->
+        <div id="title-card" class="ui-panel">
+            <h1>Cozy Campfire</h1>
+            <p>Build and tend your fire</p>
+        </div>
+
+        <!-- Resources Panel -->
+        <div id="resources-panel" class="ui-panel">
+            <h2>Resources</h2>
+            <div class="resource-item clickable" id="logs-resource">
+                <span class="resource-icon">🪵</span>
+                <span class="resource-name">Logs (Click to Add)</span>
+                <span class="resource-count" id="log-count">5</span>
+            </div>
+            <div class="resource-item">
+                <span class="resource-icon">🌿</span>
+                <span class="resource-name">Kindling</span>
+                <span class="resource-count" id="kindling-count">10</span>
+            </div>
+        </div>
+
+        <!-- Fire Status -->
+        <div id="fire-status" class="ui-panel">
+            <h2>Fire Intensity</h2>
+            <div class="fire-meter">
+                <div id="fire-meter-fill" class="fire-meter-fill"></div>
+            </div>
+            <p id="fire-state">Not Started</p>
+        </div>
+
+        <!-- Instructions -->
+        <div id="instructions" class="ui-panel">
+            <h3>Controls</h3>
+            <ul>
+                <li><strong>W, A, S, D:</strong> Move Character</li>
+                <li><strong>Click Log:</strong> Pick up (when close)</li>
+                <li><strong>L:</strong> Add log to fire</li>
+                <li><strong>Space:</strong> Light fire</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Three.js Library with Import Maps -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <!-- Game Script -->
+    <script type="module" src="game.js"></script>
+</body>
+
+</html>
