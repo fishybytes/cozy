@@ -64,148 +64,100 @@ h3 {
         inset 0 1px 0 rgba(255, 140, 60, 0.2);
 }
 
-/* ===== Title Card ===== */
-#title-card {
-    grid-column: 1 / 2;
-    grid-row: 1 / 2;
-    text-align: left;
-}
+/* Title Card CSS Removed */
 
-#title-card h1 {
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: #ff8c3c;
-    text-shadow: 0 0 20px rgba(255, 140, 60, 0.5),
-        0 0 40px rgba(255, 100, 30, 0.3);
-    margin-bottom: 0.2rem;
-    letter-spacing: 1px;
-}
-
-#title-card p {
-    font-size: 1rem;
-    color: #d4a574;
-    font-weight: 300;
-}
-
-/* ===== Resources Panel ===== */
-#resources-panel {
+/* ===== Bottom Left Panel ===== */
+#bottom-left-panel {
     grid-column: 1 / 2;
     grid-row: 2 / 3;
-    align-self: start;
-}
-
-#resources-panel h2 {
-    font-size: 1.2rem;
-    color: #ff8c3c;
-    margin-bottom: 0.5rem;
-    text-shadow: 0 0 10px rgba(255, 140, 60, 0.3);
-}
-
-.resource-item {
+    align-self: end;
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem;
-    margin-bottom: 0.5rem;
-    background: rgba(255, 140, 60, 0.05);
-    border-radius: 8px;
-    transition: all 0.2s ease;
-}
-
-.resource-item.clickable {
-    cursor: pointer;
-    border: 1px solid transparent;
-}
-
-.resource-item.clickable:hover {
-    background: rgba(255, 140, 60, 0.2);
-    transform: translateX(4px);
-    border-color: rgba(255, 140, 60, 0.3);
-}
-
-.resource-item.clickable:active {
-    transform: scale(0.98);
-}
-
-.resource-icon {
-    font-size: 1.4rem;
-    filter: drop-shadow(0 0 8px rgba(255, 140, 60, 0.4));
-}
-
-.resource-name {
-    flex: 1;
-    font-size: 1rem;
-    color: #e5d5c5;
-}
-
-.resource-count {
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #ff8c3c;
-    min-width: 1.5rem;
-    text-align: right;
-}
-
-/* ===== Fire Status ===== */
-#fire-status {
-    grid-column: 2 / 4;
-    grid-row: 1 / 2;
-    display: flex;
-    align-items: center;
     gap: 1.5rem;
+    align-items: flex-end;
+    margin-bottom: 2rem;
+    pointer-events: none;
 }
 
-#fire-status h2 {
-    font-size: 1.2rem;
-    color: #ff8c3c;
-    margin-bottom: 0;
-    text-shadow: 0 0 10px rgba(255, 140, 60, 0.3);
-    white-space: nowrap;
-}
-
-.fire-meter {
-    flex: 1;
-    height: 12px;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid rgba(255, 140, 60, 0.3);
+/* ===== Fire Status (Adjusted) ===== */
+#fire-status {
+    width: auto;
+    /* Reset from previous */
+    grid-column: auto;
+    grid-row: auto;
+    align-self: auto;
     margin-bottom: 0;
 }
 
-.fire-meter-fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg,
-            #ff4500 0%,
-            #ff6b35 25%,
-            #ff8c3c 50%,
-            #ffa500 75%,
-            #ffd700 100%);
-    border-radius: 6px;
-    transition: width 0.5s ease;
-    box-shadow: 0 0 20px rgba(255, 140, 60, 0.8),
-        inset 0 0 10px rgba(255, 200, 100, 0.5);
-    animation: flicker 2s ease-in-out infinite;
+/* ===== Inventory ===== */
+#inventory-container {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
 }
 
-@keyframes flicker {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.85;
-    }
+.inventory-item {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    background: rgba(20, 15, 10, 0.4);
+    border: 1px solid rgba(255, 140, 60, 0.2);
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(4px);
 }
 
-#fire-state {
-    font-size: 1.3rem;
-    color: #d4a574;
-    text-align: center;
-    font-weight: 300;
+.inv-icon {
+    font-size: 2.5rem;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.inv-count {
+    position: absolute;
+    bottom: -5px;
+    right: -5px;
+    background: #ff8c3c;
+    color: #000;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    border: 1px solid #fff;
+    font-family: sans-serif;
+    /* Clear readable font for numbers */
+}
+
+/* Old rule removed */
+
+#fire-icon-container {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.fire-icon-bg,
+.fire-icon-fg {
+    font-size: 5rem;
+    position: absolute;
+    bottom: 0;
+    line-height: 1;
+    user-select: none;
+}
+
+.fire-icon-bg {
+    filter: grayscale(1) brightness(0.3);
+    opacity: 0.5;
+}
+
+.fire-icon-fg {
+    filter: drop-shadow(0 0 10px rgba(255, 140, 60, 0.8));
+    clip-path: inset(100% 0 0 0);
+    transition: clip-path 0.5s ease;
 }
 
 /* ===== Instructions ===== */
