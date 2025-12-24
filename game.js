@@ -15,6 +15,9 @@ let groundLogs = [];
 let hoveredLog = null;
 let hoveredFirepit = null;
 let firepitStones = [];
+let perchTargets = []; // Tree positions for owl
+let owl;
+let owlState = { mode: 'IDLE', timer: 0, targetStart: null, targetEnd: null, flightTime: 0 };
 
 // Game State
 let gameState = {
@@ -119,6 +122,7 @@ function init() {
     createTrees();
     createBushes();
     createMountains();
+    createOwl();
     createStars();
     createMoon();
     createGroundLogs();
@@ -447,6 +451,146 @@ function createTrees() {
         }
 
         scene.add(treeGroup);
+        // Add to perch targets (Tree Y + Height)
+        perchTargets.push(new THREE.Vector3(x, 3.2 + 1.5, z));
+    }
+}
+
+// ===== Create Owl =====
+function createOwl() {
+    const owlGroup = new THREE.Group();
+
+    // Body
+    const bodyGeo = new THREE.SphereGeometry(0.3, 8, 8);
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2a });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.scale.y = 1.2;
+    owlGroup.add(body);
+
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
+    const headMat = new THREE.MeshStandardMaterial({ color: 0x6a5a4a });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 0.4;
+    owlGroup.add(head);
+
+    // Eyes
+    const eyeGeo = new THREE.SphereGeometry(0.05, 4, 4);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+
+    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+    leftEye.position.set(-0.1, 0.45, 0.2);
+    owlGroup.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+    rightEye.position.set(0.1, 0.45, 0.2);
+    owlGroup.add(rightEye);
+
+    // Wings (Pivot for flapping)
+    const wingGeo = new THREE.PlaneGeometry(0.4, 0.6);
+    wingGeo.translate(0.2, 0, 0); // Pivot at edge
+    const wingMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, side: THREE.DoubleSide });
+
+    const leftWing = new THREE.Mesh(wingGeo, wingMat);
+    leftWing.position.set(-0.2, 0.2, 0);
+    leftWing.rotation.y = Math.PI; // Flip
+    leftWing.name = "LeftWing";
+    owlGroup.add(leftWing);
+
+    const rightWing = new THREE.Mesh(wingGeo, wingMat);
+    rightWing.position.set(0.2, 0.2, 0);
+    rightWing.name = "RightWing";
+    owlGroup.add(rightWing);
+
+    scene.add(owlGroup);
+    owl = owlGroup;
+
+    // Pick initial perch
+    if (perchTargets.length > 0) {
+        const start = perchTargets[Math.floor(Math.random() * perchTargets.length)];
+        // Add slight random offset to simulate perching on a branch, not dead center
+        owl.position.copy(start);
+        owlState.mode = 'IDLE';
+        owlState.timer = 5.0; // Wait 5s before first flight
+    }
+}
+
+// ===== Update Owl =====
+function updateOwl(deltaTime) {
+    if (!owl) return;
+
+    // Wing Flap helper
+    const flap = (speed) => {
+        const angle = Math.sin(Date.now() * speed) * 0.5;
+        const left = owl.getObjectByName("LeftWing");
+        const right = owl.getObjectByName("RightWing");
+        if (left && right) {
+            left.rotation.z = angle;
+            right.rotation.z = -angle;
+        }
+    };
+
+    if (owlState.mode === 'IDLE') {
+        owlState.timer -= deltaTime;
+
+        // Slow random look around
+        owl.rotation.y += Math.sin(Date.now() * 0.001) * 0.005;
+
+        // Reset wings
+        const left = owl.getObjectByName("LeftWing");
+        const right = owl.getObjectByName("RightWing");
+        if (left) left.rotation.z = 0.2; // Tucked
+        if (right) right.rotation.z = -0.2;
+
+        if (owlState.timer <= 0) {
+            // Pick new target
+            if (perchTargets.length > 0) {
+                owlState.targetStart = owl.position.clone();
+                let idx = Math.floor(Math.random() * perchTargets.length);
+                owlState.targetEnd = perchTargets[idx];
+
+                // Avoid same tree (simple check)
+                if (owlState.targetStart.distanceTo(owlState.targetEnd) < 1.0) {
+                    idx = (idx + 1) % perchTargets.length;
+                    owlState.targetEnd = perchTargets[idx];
+                }
+
+                owlState.mode = 'FLYING';
+                owlState.timer = 0;
+
+                // Speed based on distance (approx 5-10 units/sec)
+                const dist = owlState.targetStart.distanceTo(owlState.targetEnd);
+                owlState.flightTime = dist / 8.0;
+            }
+        }
+    } else if (owlState.mode === 'FLYING') {
+        owlState.timer += deltaTime;
+        let t = owlState.timer / owlState.flightTime;
+
+        if (t >= 1.0) {
+            // Land
+            owl.position.copy(owlState.targetEnd);
+            owlState.mode = 'IDLE';
+            owlState.timer = 8 + Math.random() * 4; // Stay for 8-12s
+            return;
+        }
+
+        // Curve path
+        // Lerp
+        const currentPos = new THREE.Vector3().lerpVectors(owlState.targetStart, owlState.targetEnd, t);
+        // Add arc height (Sine)
+        const arcHeight = 5.0 * Math.sin(t * Math.PI);
+        currentPos.y += arcHeight;
+
+        // Look at target (next frame pos approx)
+        owl.lookAt(owlState.targetEnd);
+        // Fix LookAt interfering with wings if needed, but Group rotation handles body
+        // Actually lookAt overwrites Y rotation. 
+
+        owl.position.copy(currentPos);
+
+        // Flap wings fast
+        flap(0.02);
     }
 }
 
@@ -1091,6 +1235,9 @@ function animate() {
 
     // Update character
     updatePlayer();
+
+    // Update Owl
+    updateOwl(0.016); // Approx delta time (1/60)
 
     // Generate particles if fire is lit
     if (gameState.isLit && gameState.fireIntensity > 0) {
