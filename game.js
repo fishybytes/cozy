@@ -460,19 +460,24 @@ function createTrees() {
 function createOwl() {
     const owlGroup = new THREE.Group();
 
+    // Inner Rig for Body Animation (pitching/banking)
+    const innerRig = new THREE.Group();
+    innerRig.name = "InnerRig";
+    owlGroup.add(innerRig);
+
     // Body
     const bodyGeo = new THREE.SphereGeometry(0.3, 8, 8);
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4a3a2a });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.scale.y = 1.2;
-    owlGroup.add(body);
+    innerRig.add(body);
 
     // Head
     const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
     const headMat = new THREE.MeshStandardMaterial({ color: 0x6a5a4a });
     const head = new THREE.Mesh(headGeo, headMat);
     head.position.y = 0.4;
-    owlGroup.add(head);
+    innerRig.add(head);
 
     // Eyes
     const eyeGeo = new THREE.SphereGeometry(0.05, 4, 4);
@@ -480,11 +485,11 @@ function createOwl() {
 
     const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
     leftEye.position.set(-0.1, 0.45, 0.2);
-    owlGroup.add(leftEye);
+    innerRig.add(leftEye);
 
     const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
     rightEye.position.set(0.1, 0.45, 0.2);
-    owlGroup.add(rightEye);
+    innerRig.add(rightEye);
 
     // Wings (Pivot for flapping)
     const wingGeo = new THREE.PlaneGeometry(0.4, 0.6);
@@ -495,23 +500,24 @@ function createOwl() {
     leftWing.position.set(-0.2, 0.2, 0);
     leftWing.rotation.y = Math.PI; // Flip
     leftWing.name = "LeftWing";
-    owlGroup.add(leftWing);
+    innerRig.add(leftWing);
 
     const rightWing = new THREE.Mesh(wingGeo, wingMat);
     rightWing.position.set(0.2, 0.2, 0);
     rightWing.name = "RightWing";
-    owlGroup.add(rightWing);
+    innerRig.add(rightWing);
 
     scene.add(owlGroup);
     owl = owlGroup;
 
     // Pick initial perch
     if (perchTargets.length > 0) {
-        const start = perchTargets[Math.floor(Math.random() * perchTargets.length)];
-        // Add slight random offset to simulate perching on a branch, not dead center
-        owl.position.copy(start);
         owlState.mode = 'IDLE';
-        owlState.timer = 5.0; // Wait 5s before first flight
+        owlState.timer = 2.0; // Wait 2s before thinking
+
+        // Pick random start perch
+        const idx = Math.floor(Math.random() * perchTargets.length);
+        owl.position.copy(perchTargets[idx]);
     }
 }
 
@@ -522,23 +528,60 @@ function updateOwl(deltaTime) {
     // Wing Flap helper
     const flap = (speed) => {
         const angle = Math.sin(Date.now() * speed) * 0.5;
-        const left = owl.getObjectByName("LeftWing");
-        const right = owl.getObjectByName("RightWing");
+        // Use innerRig to find wings
+        const inner = owl.getObjectByName("InnerRig");
+        if (!inner) return;
+
+        const left = inner.getObjectByName("LeftWing");
+        const right = inner.getObjectByName("RightWing");
         if (left && right) {
             left.rotation.z = angle;
             right.rotation.z = -angle;
         }
     };
 
-    if (owlState.mode === 'IDLE') {
+    // Pitch & Bank Logic
+    const inner = owl.getObjectByName("InnerRig");
+
+    // Default target rotations
+    let targetPitch = 0;
+    let targetRoll = 0;
+
+    if (owlState.mode === 'DEBUG_CIRCLE' || owlState.mode === 'FLYING') {
+        targetPitch = Math.PI / 2; // Lean forward (horizontal)
+    }
+
+    if (owlState.mode === 'DEBUG_CIRCLE') {
+        const speed = 0.0005;
+        const radius = 6.0;
+        const height = 8.0;
+
+        const time = Date.now() * speed;
+        const x = Math.cos(time) * radius;
+        const z = Math.sin(time) * radius;
+
+        // Move
+        owl.position.set(x, height, z);
+
+        // Look forward (tangent)
+        const nextX = Math.cos(time + 0.1) * radius;
+        const nextZ = Math.sin(time + 0.1) * radius;
+        owl.lookAt(nextX, height, nextZ);
+
+        // Constant bank for circle
+        targetRoll = -0.5; // Bank left into the turn
+
+        flap(0.015);
+
+    } else if (owlState.mode === 'IDLE') {
         owlState.timer -= deltaTime;
 
         // Slow random look around
         owl.rotation.y += Math.sin(Date.now() * 0.001) * 0.005;
 
         // Reset wings
-        const left = owl.getObjectByName("LeftWing");
-        const right = owl.getObjectByName("RightWing");
+        const left = inner ? inner.getObjectByName("LeftWing") : null;
+        const right = inner ? inner.getObjectByName("RightWing") : null;
         if (left) left.rotation.z = 0.2; // Tucked
         if (right) right.rotation.z = -0.2;
 
@@ -576,21 +619,43 @@ function updateOwl(deltaTime) {
         }
 
         // Curve path
-        // Lerp
         const currentPos = new THREE.Vector3().lerpVectors(owlState.targetStart, owlState.targetEnd, t);
-        // Add arc height (Sine)
         const arcHeight = 5.0 * Math.sin(t * Math.PI);
         currentPos.y += arcHeight;
 
-        // Look at target (next frame pos approx)
-        owl.lookAt(owlState.targetEnd);
-        // Fix LookAt interfering with wings if needed, but Group rotation handles body
-        // Actually lookAt overwrites Y rotation. 
+        // Store old rotation for banking calculation
+        const oldRotY = owl.rotation.y;
+
+        // Face target
+        owl.lookAt(owlState.targetEnd); // Rough look at
+
+        // Calculate smooth lookAt including height changes? 
+        // Simple lookAt targetEnd is okay for global direction, but we want to look along the tangent of the curve if possible.
+        // Approximate tangent:
+        const nextT = Math.min(1.0, t + 0.01);
+        const nextPos = new THREE.Vector3().lerpVectors(owlState.targetStart, owlState.targetEnd, nextT);
+        nextPos.y += 5.0 * Math.sin(nextT * Math.PI);
+        owl.lookAt(nextPos);
+
+        // Banking logic: Roll based on Yaw delta (turning speed)
+        // Since we are moving mostly straight to target with LookAt, rotation changes are small unless the path curves.
+        // But the path is just an arc in Y, straight in XZ. So banking won't trigger much on straight flights.
+        // Let's manually add some "sway" or fake banking if it's straight, or just leave it for turns.
+        // Since flight is straight line + arc, there is no turning. 
+        // To make it look more dynamic, let's add a sine wave slight roll.
+        targetRoll = Math.sin(Date.now() * 0.003) * 0.2;
 
         owl.position.copy(currentPos);
 
-        // Flap wings fast
         flap(0.02);
+    }
+
+    // Apply smooth rotation to InnerRig
+    if (inner) {
+        // Pitch
+        inner.rotation.x = THREE.MathUtils.lerp(inner.rotation.x, targetPitch, 0.05);
+        // Roll (Bank)
+        inner.rotation.z = THREE.MathUtils.lerp(inner.rotation.z, targetRoll, 0.05);
     }
 }
 
