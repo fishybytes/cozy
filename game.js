@@ -952,6 +952,25 @@ function onCanvasClick(event) {
             gameState.logs--;
             gameState.logsInFire++;
 
+            // Create visual log in fire
+            const logGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1, 8);
+            const logMaterial = new THREE.MeshStandardMaterial({
+                color: 0x5a3a1a,
+                roughness: 0.9
+            });
+            const log = new THREE.Mesh(logGeometry, logMaterial);
+            const angle = (logs.length / 6) * Math.PI * 2;
+            const radius = 0.3;
+            log.position.set(
+                Math.cos(angle) * radius,
+                0.2 + logs.length * 0.15,
+                Math.sin(angle) * radius
+            );
+            log.rotation.z = Math.PI / 2 + angle;
+            log.castShadow = true;
+            logs.push(log);
+            scene.add(log);
+
             // Auto-ignite if we have more than 2 logs
             if (gameState.logsInFire > 2 && !gameState.isLit) {
                 gameState.isLit = true;
