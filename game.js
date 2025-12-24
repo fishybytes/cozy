@@ -20,9 +20,9 @@ let firepitStones = [];
 let gameState = {
     logs: 5,
     kindling: 10,
-    fireIntensity: 0,
-    isLit: false,
-    logsInFire: 0
+    fireIntensity: 60,  // Start partial
+    isLit: true,        // Start lit
+    logsInFire: 3       // Start with 3 logs
 };
 
 // Character System
@@ -36,7 +36,9 @@ const ROTATION_SPEED = 0.15; // Increased rotation speed for snappier feel
 let cameraState = {
     angleX: 0, // 0 = Camera at +Z (South), looking -Z (North)
     angleY: 0.3, // Pitch (radians)
-    radius: 8.0,
+    radius: 10.0,
+    minRadius: 5.0,
+    maxRadius: 20.0,
     isDragging: false
 };
 
@@ -118,7 +120,29 @@ function init() {
     createStars();
     createMoon();
     createGroundLogs();
+    createGroundLogs();
     createCharacter();
+
+    // Create initial logs in fire
+    for (let i = 0; i < gameState.logsInFire; i++) {
+        const logGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1, 8);
+        const logMaterial = new THREE.MeshStandardMaterial({
+            color: 0x5a3a1a,
+            roughness: 0.9
+        });
+        const log = new THREE.Mesh(logGeometry, logMaterial);
+        const angle = (i / 6) * Math.PI * 2;
+        const radius = 0.3;
+        log.position.set(
+            Math.cos(angle) * radius,
+            0.2 + i * 0.15,
+            Math.sin(angle) * radius
+        );
+        log.rotation.z = Math.PI / 2 + angle;
+        log.castShadow = true;
+        logs.push(log);
+        scene.add(log);
+    }
 
     // Event listeners
     window.addEventListener('resize', onWindowResize);
@@ -130,12 +154,11 @@ function init() {
     window.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('wheel', onMouseWheel, { passive: false });
     window.addEventListener('contextmenu', e => e.preventDefault());
 
     // UI Event Listeners
-    document.getElementById('logs-resource').addEventListener('click', () => {
-        addLogToFire();
-    });
+    // removed as per user request
 
     // Start animation loop
     animate();
@@ -322,15 +345,15 @@ function createGround() {
 
 // ===== Create Stone Ring =====
 function createStoneRing() {
-    const stoneCount = 12;
-    const radius = 1.5;
+    const stoneCount = 15;
+    const radius = 1.3;
 
     for (let i = 0; i < stoneCount; i++) {
         const angle = (i / stoneCount) * Math.PI * 2;
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
 
-        const stoneGeometry = new THREE.DodecahedronGeometry(0.3, 0);
+        const stoneGeometry = new THREE.DodecahedronGeometry(0.3 + Math.random() * 0.05, 0);
         const stoneMaterial = new THREE.MeshStandardMaterial({
             color: 0x4a4a4a,
             roughness: 0.95,
@@ -784,21 +807,10 @@ function updateUI() {
     document.getElementById('log-count').textContent = gameState.logs;
     document.getElementById('kindling-count').textContent = gameState.kindling;
 
-    const fireMeter = document.getElementById('fire-meter-fill');
-    fireMeter.style.width = gameState.fireIntensity + '%';
-
-    const fireState = document.getElementById('fire-state');
-    if (!gameState.isLit) {
-        fireState.textContent = gameState.logsInFire > 0 ? 'Ready to Light' : 'Not Started';
-    } else if (gameState.fireIntensity > 70) {
-        fireState.textContent = 'Roaring Fire! 🔥';
-    } else if (gameState.fireIntensity > 40) {
-        fireState.textContent = 'Burning Steady';
-    } else if (gameState.fireIntensity > 10) {
-        fireState.textContent = 'Smoldering';
-    } else {
-        fireState.textContent = 'Dying Out...';
-    }
+    const fireFill = document.getElementById('fire-icon-fill');
+    // Calculate inverse percentage for inset (100% inset = 0% visible)
+    const insetPercentage = 100 - gameState.fireIntensity;
+    fireFill.style.clipPath = `inset(${insetPercentage}% 0 0 0)`;
 }
 
 // ===== Window Resize =====
@@ -926,6 +938,17 @@ function onMouseMove(event) {
         }
         document.body.style.cursor = 'default';
     }
+}
+
+function onMouseWheel(event) {
+    event.preventDefault();
+
+    // Zoom in/out based on wheel direction
+    const sensitivity = 0.01;
+    cameraState.radius += event.deltaY * sensitivity;
+
+    // Clamp radius
+    cameraState.radius = Math.max(cameraState.minRadius, Math.min(cameraState.maxRadius, cameraState.radius));
 }
 
 // ===== Interaction =====

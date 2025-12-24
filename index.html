@@ -21,33 +21,30 @@
     <!-- UI Overlay -->
     <div id="ui-overlay">
         <!-- Title -->
-        <div id="title-card" class="ui-panel">
-            <h1>Cozy Campfire</h1>
-            <p>Build and tend your fire</p>
-        </div>
+        <!-- Title Removed -->
 
-        <!-- Resources Panel -->
-        <div id="resources-panel" class="ui-panel">
-            <h2>Resources</h2>
-            <div class="resource-item clickable" id="logs-resource">
-                <span class="resource-icon">🪵</span>
-                <span class="resource-name">Logs (Click to Add)</span>
-                <span class="resource-count" id="log-count">5</span>
+        <!-- Bottom Left Panel (Fire & Inventory) -->
+        <div id="bottom-left-panel">
+            <!-- Fire Status -->
+            <div id="fire-status">
+                <div id="fire-icon-container">
+                    <div class="fire-icon-bg">🔥</div>
+                    <div id="fire-icon-fill" class="fire-icon-fg">🔥</div>
+                </div>
             </div>
-            <div class="resource-item">
-                <span class="resource-icon">🌿</span>
-                <span class="resource-name">Kindling</span>
-                <span class="resource-count" id="kindling-count">10</span>
-            </div>
-        </div>
 
-        <!-- Fire Status -->
-        <div id="fire-status" class="ui-panel">
-            <h2>Fire Intensity</h2>
-            <div class="fire-meter">
-                <div id="fire-meter-fill" class="fire-meter-fill"></div>
+            <!-- Inventory -->
+            <div id="inventory-container">
+                <div class="inventory-item">
+                    <div class="inv-icon">🪵</div>
+                    <div id="log-count" class="inv-count">5</div>
+                </div>
+                <!-- Removed kindling as per "turn the logs and kindling into two icons" request -->
+                <div class="inventory-item">
+                    <div class="inv-icon">🌿</div>
+                    <div id="kindling-count" class="inv-count">10</div>
+                </div>
             </div>
-            <p id="fire-state">Not Started</p>
         </div>
 
         <!-- Instructions -->
@@ -57,6 +54,7 @@
                 <li><strong>W, A, S, D:</strong> Move Character</li>
                 <li><strong>Click Log:</strong> Pick up (when close)</li>
                 <li><strong>Click Firepit:</strong> Add log to fire (auto-ignites at 3+ logs)</li>
+                <li><strong>Scroll Wheel:</strong> Zoom Camera</li>
             </ul>
         </div>
     </div>
