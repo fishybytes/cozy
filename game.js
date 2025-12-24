@@ -117,6 +117,7 @@ function init() {
     createGround();
     createStoneRing();
     createTrees();
+    createBushes();
     createMountains();
     createStars();
     createMoon();
@@ -447,6 +448,63 @@ function createTrees() {
 
         scene.add(treeGroup);
     }
+}
+
+// ===== Create Bushes (Instanced) =====
+function createBushes() {
+    const instanceCount = 200; // Fewer bushes than grass
+
+    // Low poly bush geometry
+    const geometry = new THREE.DodecahedronGeometry(0.5, 0);
+    geometry.translate(0, 0.4, 0); // Sit on ground
+
+    const material = new THREE.MeshStandardMaterial({
+        color: 0x3a5a2a, // Nice foliage green
+        roughness: 0.9,
+    });
+
+    const mesh = new THREE.InstancedMesh(geometry, material, instanceCount);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
+
+    let count = 0;
+    for (let i = 0; i < instanceCount; i++) {
+        // Random position
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 6 + Math.random() * 60; // Keep clear of camp
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+
+        const y = getTerrainHeight(x, z) - 0.3;
+
+        dummy.position.set(x, y, z);
+
+        // Random scale
+        const s = 0.6 + Math.random() * 0.8;
+        dummy.scale.set(s, s * 0.8, s); // Slightly flattened
+
+        // Random rotation
+        dummy.rotation.y = Math.random() * Math.PI * 2;
+        dummy.rotation.z = (Math.random() - 0.5) * 0.3;
+        dummy.rotation.x = (Math.random() - 0.5) * 0.3;
+
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+
+        // Color Variation
+        color.setHSL(0.25 + Math.random() * 0.1, 0.4 + Math.random() * 0.2, 0.15 + Math.random() * 0.2);
+        mesh.setColorAt(i, color);
+
+        count++;
+    }
+
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor.needsUpdate = true;
+
+    scene.add(mesh);
 }
 
 // ===== Create Mountains =====
