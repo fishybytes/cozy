@@ -1025,6 +1025,17 @@ function animate() {
 
         // Decrease fire intensity over time
         gameState.fireIntensity -= 0.005; // 4x slower burn
+
+        // Log consumption logic
+        // Intensity 100 = 5 logs (approx 20 per log)
+        if (logs.length > 0) {
+            const maxLogsSupported = Math.ceil(gameState.fireIntensity / 20);
+            if (logs.length > maxLogsSupported) {
+                const burntLog = logs.pop(); // Remove from top
+                scene.remove(burntLog);
+                gameState.logsInFire = logs.length;
+            }
+        }
         if (gameState.fireIntensity <= 0) {
             gameState.fireIntensity = 0;
             gameState.isLit = false;
