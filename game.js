@@ -13,6 +13,8 @@ let fireLight;
 let logs = [];
 let groundLogs = [];
 let hoveredLog = null;
+let hoveredFirepit = null;
+let firepitStones = [];
 
 // Game State
 let gameState = {
@@ -332,7 +334,9 @@ function createStoneRing() {
         const stoneMaterial = new THREE.MeshStandardMaterial({
             color: 0x4a4a4a,
             roughness: 0.95,
-            metalness: 0.05
+            metalness: 0.05,
+            emissive: 0x000000,
+            emissiveIntensity: 0.8
         });
         const stone = new THREE.Mesh(stoneGeometry, stoneMaterial);
         stone.position.set(x, 0.15, z);
@@ -344,7 +348,20 @@ function createStoneRing() {
         stone.castShadow = true;
         stone.receiveShadow = true;
         scene.add(stone);
+
+        // Tag stone for clicking
+        stone.userData = { type: 'firepit' };
+        firepitStones.push(stone);
     }
+
+    // Create invisible sphere for unified click detection
+    const hitSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(2, 8, 8),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, visible: false })
+    );
+    hitSphere.position.set(0, 0.5, 0);
+    hitSphere.userData = { type: 'firepit-hitbox' };
+    scene.add(hitSphere);
 }
 
 // ===== Create Trees =====
@@ -530,7 +547,7 @@ function createGroundLogs() {
 
         const logGroup = new THREE.Group();
 
-        const logGeometry = new THREE.CylinderGeometry(0.15, 0.15, 1.2, 8);
+        const logGeometry = new THREE.CylinderGeometry(0.25, 0.25, 1.8, 8); // Bigger logs
         const logMaterial = new THREE.MeshStandardMaterial({
             color: 0x5a3a1a,
             roughness: 0.9,
@@ -799,8 +816,6 @@ function onKeyDown(event) {
         case 'a': playerInput.a = true; break;
         case 's': playerInput.s = true; break;
         case 'd': playerInput.d = true; break;
-        case 'l': addLogToFire(); break;
-        case ' ': lightFire(); break;
     }
 }
 
@@ -855,11 +870,15 @@ function onMouseMove(event) {
     const intersects = raycaster.intersectObjects(scene.children, true);
 
     let foundLog = null;
+    let foundFirepit = null;
 
     for (let hit of intersects) {
         if (hit.object.userData && hit.object.userData.type === 'collectible-log') {
             foundLog = hit.object;
             break;
+        }
+        if (hit.object.userData && hit.object.userData.type === 'firepit-hitbox') {
+            foundFirepit = hit.object;
         }
     }
 
@@ -873,12 +892,39 @@ function onMouseMove(event) {
             hoveredLog.material.emissive.setHex(0x884400); // Warm glow
             document.body.style.cursor = 'pointer';
         }
+        // Clear firepit if hovering log
+        if (hoveredFirepit) {
+            firepitStones.forEach(stone => stone.material.emissive.setHex(0x000000));
+            hoveredFirepit = null;
+        }
+    } else if (foundFirepit) {
+        // Handle firepit hover - highlight ALL stones
+        if (hoveredFirepit !== foundFirepit) {
+            if (hoveredFirepit) {
+                // Clear previous - turn off all stones
+                firepitStones.forEach(stone => stone.material.emissive.setHex(0x000000));
+            }
+            hoveredFirepit = foundFirepit;
+            // Highlight all stones
+            firepitStones.forEach(stone => stone.material.emissive.setHex(0xff4400));
+            document.body.style.cursor = 'pointer';
+        }
+        // Clear log hover
+        if (hoveredLog) {
+            hoveredLog.material.emissive.setHex(0x000000);
+            hoveredLog = null;
+        }
     } else {
         if (hoveredLog) {
             hoveredLog.material.emissive.setHex(0x000000);
             hoveredLog = null;
-            document.body.style.cursor = 'default';
         }
+        if (hoveredFirepit) {
+            // Clear all stone highlights
+            firepitStones.forEach(stone => stone.material.emissive.setHex(0x000000));
+            hoveredFirepit = null;
+        }
+        document.body.style.cursor = 'default';
     }
 }
 
@@ -898,6 +944,27 @@ function onCanvasClick(event) {
         document.body.style.cursor = 'default';
 
         return; // Handled
+    }
+
+    // If we have a hovered firepit, add log to fire
+    if (hoveredFirepit) {
+        if (gameState.logs > 0) {
+            gameState.logs--;
+            gameState.logsInFire++;
+
+            // Auto-ignite if we have more than 2 logs
+            if (gameState.logsInFire > 2 && !gameState.isLit) {
+                gameState.isLit = true;
+                gameState.fireIntensity = 50;
+            } else if (gameState.isLit) {
+                // Boost existing fire
+                gameState.fireIntensity += 20;
+                if (gameState.fireIntensity > 100) gameState.fireIntensity = 100;
+            }
+
+            updateUI();
+        }
+        return;
     }
 }
 
