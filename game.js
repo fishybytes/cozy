@@ -22,7 +22,8 @@ let gameState = {
     kindling: 10,
     fireIntensity: 60,  // Start partial
     isLit: true,        // Start lit
-    logsInFire: 3       // Start with 3 logs
+    logsInFire: 3,      // Start with 3 logs
+    flareIntensity: 0   // Flare-up effect intensity
 };
 
 // Character System
@@ -125,21 +126,7 @@ function init() {
 
     // Create initial logs in fire
     for (let i = 0; i < gameState.logsInFire; i++) {
-        const logGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1, 8);
-        const logMaterial = new THREE.MeshStandardMaterial({
-            color: 0x5a3a1a,
-            roughness: 0.9
-        });
-        const log = new THREE.Mesh(logGeometry, logMaterial);
-        const angle = (i / 6) * Math.PI * 2;
-        const radius = 0.3;
-        log.position.set(
-            Math.cos(angle) * radius,
-            0.2 + i * 0.15,
-            Math.sin(angle) * radius
-        );
-        log.rotation.z = Math.PI / 2 + angle;
-        log.castShadow = true;
+        const log = createLogMesh(i);
         logs.push(log);
         scene.add(log);
     }
@@ -595,27 +582,59 @@ function createGroundLogs() {
     }
 }
 
-// ===== Add Log to Fire =====
-function addLogToFire() {
-    if (gameState.logs <= 0) return;
-
-    const logGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1, 8);
+// ===== New Helper: Create Log Mesh =====
+function createLogMesh(index) {
+    const logGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1.2, 8); // Slightly longer logs
     const logMaterial = new THREE.MeshStandardMaterial({
         color: 0x5a3a1a,
         roughness: 0.9
     });
     const log = new THREE.Mesh(logGeometry, logMaterial);
 
-    const angle = (logs.length / 6) * Math.PI * 2;
-    const radius = 0.3;
-    log.position.set(
-        Math.cos(angle) * radius,
-        0.2 + logs.length * 0.15,
-        Math.sin(angle) * radius
-    );
-    log.rotation.z = Math.PI / 2 + angle;
-    log.castShadow = true;
+    // Teepee Logic
+    const isInner = index < 6;
+    const tierIndex = isInner ? index : index - 6;
+    const totalInTier = 6;
 
+    // Offset angle so "0" isn't dead center front for variety if desired, 
+    // or keep aligned. Let's align.
+    // Angle: Offset second tier to allow nesting
+    let angle = (tierIndex / totalInTier) * Math.PI * 2;
+    if (!isInner) angle += Math.PI / 6; // Rotate 30 deg
+
+    // Configuration (Updated)
+    // Radius: Closer together (0.4)
+    // Tiers stack vertically, not fast outward
+    const radius = 0.4 + (isInner ? 0 : 0.1);
+    const heightY = isInner ? 0.3 : 0.4; // Base vs Upper stack
+    // Tilt: 0 is vertical. PI/2 is horizontal. 
+    // We want them leaning in. 
+    // If we rotate X by PI/2, it points flat Z.
+    // Logic below handles the "lookAt" approach which is easier.
+
+    // Position on circle
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+
+    log.position.set(x, heightY, z);
+
+    // Rotate to lean inward
+    const lookAtY = isInner ? 0.5 : 0.9; // Lowered for flatter stack
+    log.lookAt(0, lookAtY, 0);
+    // Cylinder is Y-up. lookAt aligns Z-axis.
+    // We need to rotate X to align Y-axis to Z-axis?
+    log.rotateX(Math.PI / 2);
+
+    log.castShadow = true;
+    return log;
+}
+
+// ===== Add Log to Fire =====
+function addLogToFire() {
+    if (gameState.logs <= 0) return;
+    if (logs.length >= 12) return;
+
+    const log = createLogMesh(logs.length);
     logs.push(log);
     scene.add(log);
 
@@ -805,11 +824,13 @@ function updateParticles() {
 // ===== Update UI =====
 function updateUI() {
     document.getElementById('log-count').textContent = gameState.logs;
-    document.getElementById('kindling-count').textContent = gameState.kindling;
-
     const fireFill = document.getElementById('fire-icon-fill');
     // Calculate inverse percentage for inset (100% inset = 0% visible)
-    const insetPercentage = 100 - gameState.fireIntensity;
+    // Max intensity is 200 now, so divide by 2 to get percentage
+    let percentage = (gameState.fireIntensity / 200) * 100;
+    if (percentage > 100) percentage = 100;
+
+    const insetPercentage = 100 - percentage;
     fireFill.style.clipPath = `inset(${insetPercentage}% 0 0 0)`;
 }
 
@@ -972,25 +993,15 @@ function onCanvasClick(event) {
     // If we have a hovered firepit, add log to fire
     if (hoveredFirepit) {
         if (gameState.logs > 0) {
+
+            // Limit fire size to 12 logs (2 tiers)
+            if (logs.length >= 12) return;
+
             gameState.logs--;
             gameState.logsInFire++;
 
             // Create visual log in fire
-            const logGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1, 8);
-            const logMaterial = new THREE.MeshStandardMaterial({
-                color: 0x5a3a1a,
-                roughness: 0.9
-            });
-            const log = new THREE.Mesh(logGeometry, logMaterial);
-            const angle = (logs.length / 6) * Math.PI * 2;
-            const radius = 0.3;
-            log.position.set(
-                Math.cos(angle) * radius,
-                0.2 + logs.length * 0.15,
-                Math.sin(angle) * radius
-            );
-            log.rotation.z = Math.PI / 2 + angle;
-            log.castShadow = true;
+            const log = createLogMesh(logs.length);
             logs.push(log);
             scene.add(log);
 
@@ -998,10 +1009,15 @@ function onCanvasClick(event) {
             if (gameState.logsInFire > 2 && !gameState.isLit) {
                 gameState.isLit = true;
                 gameState.fireIntensity = 50;
+                gameState.flareIntensity = 3.0; // Big flare on ignition
             } else if (gameState.isLit) {
                 // Boost existing fire
                 gameState.fireIntensity += 20;
-                if (gameState.fireIntensity > 100) gameState.fireIntensity = 100;
+                if (gameState.fireIntensity > 200) gameState.fireIntensity = 200; // Increased max
+                gameState.flareIntensity = 2.0; // Flare on add
+
+                // Spawn ember burst
+                for (let i = 0; i < 10; i++) createEmberParticle();
             }
 
             updateUI();
@@ -1043,8 +1059,15 @@ function animate() {
         // Max intensity around 100
         const baseIntensity = (gameState.fireIntensity / 100) * 100;
 
-        fireLight.intensity = Math.max(0, baseIntensity * flicker);
-        fireLight.distance = 25 + (gameState.fireIntensity / 100) * 100; // Wide reach
+        // Apply flare
+        const flare = gameState.flareIntensity * 50;
+
+        fireLight.intensity = Math.max(0, baseIntensity * flicker) + flare;
+        fireLight.distance = 25 + (gameState.fireIntensity / 100) * 100 + (gameState.flareIntensity * 10);
+
+        // Decay flare
+        gameState.flareIntensity *= 0.95;
+        if (gameState.flareIntensity < 0.01) gameState.flareIntensity = 0;
 
         // Decrease fire intensity over time
         gameState.fireIntensity -= 0.005; // 4x slower burn
