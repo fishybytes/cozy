@@ -19,7 +19,7 @@ let perchTargets = []; // Tree positions for owl
 let owl;
 let owlState = { mode: 'IDLE', timer: 0, targetStart: null, targetEnd: null, flightTime: 0 };
 let deer;
-let deerState = { mode: 'IDLE', timer: 0, target: null };
+let deerState = { mode: 'IDLE', timer: 0, target: null, hasTalked: false };
 let dialogueTimeout;
 const dialogueData = [
     "The fire is warm tonight.",
@@ -677,8 +677,21 @@ function updateOwl(deltaTime) {
 function createDeer() {
     const group = new THREE.Group();
 
-    // Material
-    const furMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
+    // Orientation Fix Group
+    const meshGroup = new THREE.Group();
+    // Model was built facing +X. 
+    // Standard "Forward" is +Z.
+    // Rotate -90 degrees around Y to align +X to +Z.
+    meshGroup.rotation.y = -Math.PI / 2;
+    group.add(meshGroup);
+
+    // Material - Start with Glow
+    const furMat = new THREE.MeshStandardMaterial({
+        color: 0x8b5a2b,
+        roughness: 0.9,
+        emissive: 0xff6600, // Orange glow
+        emissiveIntensity: 1.0
+    });
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1b, roughness: 0.9 });
 
     // Body
@@ -687,7 +700,7 @@ function createDeer() {
     body.rotation.z = Math.PI / 2;
     body.position.y = 0.8;
     body.castShadow = true;
-    group.add(body);
+    meshGroup.add(body);
 
     // Neck
     const neckGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.6, 8);
@@ -695,48 +708,56 @@ function createDeer() {
     neck.position.set(0.5, 1.2, 0);
     neck.rotation.z = -Math.PI / 6;
     neck.castShadow = true;
-    group.add(neck);
+    meshGroup.add(neck);
 
-    // Head
-    const headGeo = new THREE.BoxGeometry(0.3, 0.35, 0.4);
+    // Head - Slimmer and simpler
+    const headGeo = new THREE.BoxGeometry(0.35, 0.3, 0.24); // Longer (0.35), Narrower (0.24)
     const head = new THREE.Mesh(headGeo, furMat);
     head.position.set(0.7, 1.5, 0);
     head.castShadow = true;
-    group.add(head);
+    meshGroup.add(head);
 
     // Nose
-    const noseGeo = new THREE.BoxGeometry(0.1, 0.1, 0.15);
+    const noseGeo = new THREE.BoxGeometry(0.1, 0.1, 0.12);
     const nose = new THREE.Mesh(noseGeo, darkMat);
-    nose.position.set(0.85, 1.5, 0);
-    group.add(nose);
+    nose.position.set(0.88, 1.5, 0); // Slightly further out
+    meshGroup.add(nose);
 
     // Ears
-    const earGeo = new THREE.ConeGeometry(0.08, 0.3, 4);
+    const earGeo = new THREE.ConeGeometry(0.06, 0.25, 4);
 
     const leftEar = new THREE.Mesh(earGeo, furMat);
-    leftEar.position.set(0.65, 1.7, 0.2);
+    leftEar.position.set(0.65, 1.65, 0.1); // Closer in (Z=0.1)
     leftEar.rotation.x = Math.PI / 6;
-    leftEar.rotation.z = -Math.PI / 6;
-    group.add(leftEar);
+    leftEar.rotation.z = -Math.PI / 4;
+    meshGroup.add(leftEar);
 
     const rightEar = new THREE.Mesh(earGeo, furMat);
-    rightEar.position.set(0.65, 1.7, -0.2);
+    rightEar.position.set(0.65, 1.65, -0.1); // Closer in (Z=-0.1)
     rightEar.rotation.x = -Math.PI / 6;
-    rightEar.rotation.z = -Math.PI / 6;
-    group.add(rightEar);
+    rightEar.rotation.z = -Math.PI / 4;
+    meshGroup.add(rightEar);
 
-    // Legs
+    // Legs (Pivot at top for animation)
     const legGeo = new THREE.CylinderGeometry(0.1, 0.08, 0.8, 6);
     const legPositions = [
-        { x: -0.3, z: 0.2 }, { x: -0.3, z: -0.2 },
-        { x: 0.3, z: 0.2 }, { x: 0.3, z: -0.2 }
+        { name: 'LegFL', x: 0.3, z: -0.2 }, // Front Left
+        { name: 'LegFR', x: 0.3, z: 0.2 },  // Front Right
+        { name: 'LegBL', x: -0.3, z: -0.2 },// Back Left
+        { name: 'LegBR', x: -0.3, z: 0.2 }  // Back Right
     ];
 
     legPositions.forEach(pos => {
+        const legGroup = new THREE.Group();
+        legGroup.name = pos.name;
+        legGroup.position.set(pos.x, 0.8, pos.z); // Hip position
+
         const leg = new THREE.Mesh(legGeo, furMat);
-        leg.position.set(pos.x, 0.4, pos.z);
+        leg.position.y = -0.4; // Hanging down
         leg.castShadow = true;
-        group.add(leg);
+
+        legGroup.add(leg);
+        meshGroup.add(legGroup);
     });
 
     // Start position (randomly in forest)
@@ -752,7 +773,7 @@ function createDeer() {
     );
     hitbox.position.y = 1;
     hitbox.userData = { type: 'deer' };
-    group.add(hitbox);
+    group.add(hitbox); // Hitbox stays on main group to align with movement logic
 
     scene.add(group);
     deer = group;
@@ -800,9 +821,32 @@ function updateDeer(deltaTime) {
             lookTarget.y = deer.position.y;
             deer.lookAt(lookTarget);
         }
+    }
 
-        // Auto dismiss after time or wait for user to click away?
-        // Logic handled in showDialogue timout
+    // Animate Legs
+    const fl = deer.getObjectByName('LegFL');
+    const fr = deer.getObjectByName('LegFR');
+    const bl = deer.getObjectByName('LegBL');
+    const br = deer.getObjectByName('LegBR');
+
+    if (fl && fr && bl && br) {
+        let swing = 0;
+
+        if (deerState.mode === 'MOVING') {
+            const walkSpeed = 10.0;
+            swing = Math.sin(Date.now() * 0.01) * 0.5;
+
+            fl.rotation.z = swing;
+            br.rotation.z = swing;
+            fr.rotation.z = -swing;
+            bl.rotation.z = -swing;
+        } else {
+            // Lerp back to stand
+            fl.rotation.z = THREE.MathUtils.lerp(fl.rotation.z, 0, 0.1);
+            fr.rotation.z = THREE.MathUtils.lerp(fr.rotation.z, 0, 0.1);
+            bl.rotation.z = THREE.MathUtils.lerp(bl.rotation.z, 0, 0.1);
+            br.rotation.z = THREE.MathUtils.lerp(br.rotation.z, 0, 0.1);
+        }
     }
 }
 
@@ -1479,6 +1523,21 @@ function onCanvasClick(event) {
     for (let hit of intersects) {
         if (hit.object.userData.type === 'deer') {
             deerState.mode = 'TALKING';
+
+            // Interaction: Turn off glow if first time
+            if (!deerState.hasTalked) {
+                deerState.hasTalked = true;
+
+                // Find fur meshes and tween off glow
+                // Simple approach: Traverse and set.
+                deer.traverse((child) => {
+                    if (child.isMesh && child.material.emissive) {
+                        child.material.emissiveIntensity = 0;
+                        child.material.emissive.setHex(0x000000); // clear color too
+                    }
+                });
+            }
+
             const phrase = dialogueData[Math.floor(Math.random() * dialogueData.length)];
             showDialogue(phrase);
             break;
