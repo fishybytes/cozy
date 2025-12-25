@@ -248,3 +248,37 @@ h3 {
 .ui-panel.active {
     animation: glow-pulse 2s ease-in-out infinite;
 }
+
+/* ===== Dialogue Panel ===== */
+#dialogue-container {
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    align-self: end;
+    text-align: center;
+    max-width: 500px;
+    margin: 0 auto 2rem auto;
+
+    /* Visibility State */
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+#dialogue-container.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+#dialogue-speaker {
+    color: #ffaa55;
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+#dialogue-text {
+    font-size: 1.1rem;
+    line-height: 1.4;
+    color: #f0e6d2;
+}
