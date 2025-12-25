@@ -18,6 +18,17 @@ let firepitStones = [];
 let perchTargets = []; // Tree positions for owl
 let owl;
 let owlState = { mode: 'IDLE', timer: 0, targetStart: null, targetEnd: null, flightTime: 0 };
+let deer;
+let deerState = { mode: 'IDLE', timer: 0, target: null };
+let dialogueTimeout;
+const dialogueData = [
+    "The fire is warm tonight.",
+    "I saw an owl flying earlier.",
+    "Do you think the stars are watching us?",
+    "The forest is peaceful.",
+    "Nature speaks if you listen.",
+    "Stay awhile, traveler."
+];
 
 // Game State
 let gameState = {
@@ -127,7 +138,9 @@ function init() {
     createMoon();
     createGroundLogs();
     createGroundLogs();
+    createGroundLogs();
     createCharacter();
+    createDeer();
 
     // Create initial logs in fire
     for (let i = 0; i < gameState.logsInFire; i++) {
@@ -647,6 +660,7 @@ function updateOwl(deltaTime) {
 
         owl.position.copy(currentPos);
 
+        // Flap wings fast
         flap(0.02);
     }
 
@@ -657,6 +671,160 @@ function updateOwl(deltaTime) {
         // Roll (Bank)
         inner.rotation.z = THREE.MathUtils.lerp(inner.rotation.z, targetRoll, 0.05);
     }
+}
+
+// ===== Create Deer =====
+function createDeer() {
+    const group = new THREE.Group();
+
+    // Material
+    const furMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1b, roughness: 0.9 });
+
+    // Body
+    const bodyGeo = new THREE.CapsuleGeometry(0.35, 0.9, 4, 8);
+    const body = new THREE.Mesh(bodyGeo, furMat);
+    body.rotation.z = Math.PI / 2;
+    body.position.y = 0.8;
+    body.castShadow = true;
+    group.add(body);
+
+    // Neck
+    const neckGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.6, 8);
+    const neck = new THREE.Mesh(neckGeo, furMat);
+    neck.position.set(0.5, 1.2, 0);
+    neck.rotation.z = -Math.PI / 6;
+    neck.castShadow = true;
+    group.add(neck);
+
+    // Head
+    const headGeo = new THREE.BoxGeometry(0.3, 0.35, 0.4);
+    const head = new THREE.Mesh(headGeo, furMat);
+    head.position.set(0.7, 1.5, 0);
+    head.castShadow = true;
+    group.add(head);
+
+    // Nose
+    const noseGeo = new THREE.BoxGeometry(0.1, 0.1, 0.15);
+    const nose = new THREE.Mesh(noseGeo, darkMat);
+    nose.position.set(0.85, 1.5, 0);
+    group.add(nose);
+
+    // Ears
+    const earGeo = new THREE.ConeGeometry(0.08, 0.3, 4);
+
+    const leftEar = new THREE.Mesh(earGeo, furMat);
+    leftEar.position.set(0.65, 1.7, 0.2);
+    leftEar.rotation.x = Math.PI / 6;
+    leftEar.rotation.z = -Math.PI / 6;
+    group.add(leftEar);
+
+    const rightEar = new THREE.Mesh(earGeo, furMat);
+    rightEar.position.set(0.65, 1.7, -0.2);
+    rightEar.rotation.x = -Math.PI / 6;
+    rightEar.rotation.z = -Math.PI / 6;
+    group.add(rightEar);
+
+    // Legs
+    const legGeo = new THREE.CylinderGeometry(0.1, 0.08, 0.8, 6);
+    const legPositions = [
+        { x: -0.3, z: 0.2 }, { x: -0.3, z: -0.2 },
+        { x: 0.3, z: 0.2 }, { x: 0.3, z: -0.2 }
+    ];
+
+    legPositions.forEach(pos => {
+        const leg = new THREE.Mesh(legGeo, furMat);
+        leg.position.set(pos.x, 0.4, pos.z);
+        leg.castShadow = true;
+        group.add(leg);
+    });
+
+    // Start position (randomly in forest)
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 15;
+    group.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+
+    // Tag for interaction
+    // We put a hitbox on it
+    const hitbox = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 2, 1.5),
+        new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitbox.position.y = 1;
+    hitbox.userData = { type: 'deer' };
+    group.add(hitbox);
+
+    scene.add(group);
+    deer = group;
+}
+
+// ===== Update Deer =====
+function updateDeer(deltaTime) {
+    if (!deer) return;
+
+    if (deerState.mode === 'IDLE') {
+        deerState.timer -= deltaTime;
+        if (deerState.timer <= 0) {
+            // Pick new target
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 10 + Math.random() * 10; // Keep somewhat near camp
+            deerState.target = new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+            deerState.target.y = getTerrainHeight(deerState.target.x, deerState.target.z);
+
+            deerState.mode = 'MOVING';
+        }
+    } else if (deerState.mode === 'MOVING') {
+        const speed = 2.0 * deltaTime;
+        const dist = deer.position.distanceTo(deerState.target);
+
+        if (dist < 0.5) {
+            deerState.mode = 'IDLE';
+            deerState.timer = 5 + Math.random() * 10;
+        } else {
+            // Move towards
+            const dir = new THREE.Vector3().subVectors(deerState.target, deer.position).normalize();
+            deer.position.add(dir.multiplyScalar(speed));
+
+            // Look at
+            const lookTarget = deerState.target.clone();
+            lookTarget.y = deer.position.y;
+            deer.lookAt(lookTarget);
+
+            // Terrain height
+            deer.position.y = getTerrainHeight(deer.position.x, deer.position.z);
+        }
+    } else if (deerState.mode === 'TALKING') {
+        // Face player
+        if (player) {
+            const lookTarget = player.position.clone();
+            lookTarget.y = deer.position.y;
+            deer.lookAt(lookTarget);
+        }
+
+        // Auto dismiss after time or wait for user to click away?
+        // Logic handled in showDialogue timout
+    }
+}
+
+// ===== Show Dialogue =====
+function showDialogue(text) {
+    const container = document.getElementById('dialogue-container');
+    const textEl = document.getElementById('dialogue-text');
+
+    textEl.textContent = text;
+    container.classList.add('visible');
+
+    // Reset state after delay
+    if (dialogueTimeout) clearTimeout(dialogueTimeout);
+
+    // Auto hide after 5 seconds
+    dialogueTimeout = setTimeout(() => {
+        container.classList.remove('visible');
+        if (deerState.mode === 'TALKING') {
+            deerState.mode = 'IDLE';
+            deerState.timer = 2; // Pause before walking away
+        }
+    }, 5000);
 }
 
 // ===== Create Bushes (Instanced) =====
@@ -1180,6 +1348,11 @@ function onMouseMove(event) {
         if (hit.object.userData && hit.object.userData.type === 'firepit-hitbox') {
             foundFirepit = hit.object;
         }
+        if (hit.object.userData && hit.object.userData.type === 'deer') {
+            document.body.style.cursor = 'help'; // Use 'help' or similar for talk
+            // We can return early or manage priority. Let's let deer override log.
+            return;
+        }
     }
 
     if (foundLog) {
@@ -1291,6 +1464,26 @@ function onCanvasClick(event) {
         }
         return;
     }
+
+    // Check click on deer
+    // Re-raycast to be sure or check hover state if strictly tracked?
+    // Let's raycast.
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    for (let hit of intersects) {
+        if (hit.object.userData.type === 'deer') {
+            deerState.mode = 'TALKING';
+            const phrase = dialogueData[Math.floor(Math.random() * dialogueData.length)];
+            showDialogue(phrase);
+            break;
+        }
+    }
 }
 
 
@@ -1303,6 +1496,9 @@ function animate() {
 
     // Update Owl
     updateOwl(0.016); // Approx delta time (1/60)
+
+    // Update Deer
+    updateDeer(0.016);
 
     // Generate particles if fire is lit
     if (gameState.isLit && gameState.fireIntensity > 0) {
