@@ -768,10 +768,11 @@ function createDeer() {
     // Tag for interaction
     // We put a hitbox on it
     const hitbox = new THREE.Mesh(
-        new THREE.BoxGeometry(2, 2, 1.5),
+        new THREE.BoxGeometry(2, 2, 3), // Wider and Deeper (covers head and tail)
         new THREE.MeshBasicMaterial({ visible: false })
     );
     hitbox.position.y = 1;
+    hitbox.position.z = 0.5; // Offset slightly forward to cover head better
     hitbox.userData = { type: 'deer' };
     group.add(hitbox); // Hitbox stays on main group to align with movement logic
 
